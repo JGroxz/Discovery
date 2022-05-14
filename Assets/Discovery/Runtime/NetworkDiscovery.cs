@@ -15,9 +15,9 @@ namespace Mirage.Discovery
     [AddComponentMenu("Network/NetworkDiscovery")]
     public class NetworkDiscovery : NetworkDiscoveryBase<ServerRequest, ServerResponse>
     {
-        static readonly ILogger logger = LogFactory.GetLogger(typeof(NetworkDiscovery));
+        private static readonly ILogger Logger = LogFactory.GetLogger(typeof(NetworkDiscovery));
 
-        #region Server Logic
+        #region Server Methods
 
         public long ServerId { get; private set; }
 
@@ -63,14 +63,14 @@ namespace Mirage.Discovery
             }
             catch (NotImplementedException)
             {
-                logger.LogError($"Transport {transport} does not support network discovery");
+                Logger.LogError($"Transport {transport} does not support network discovery");
                 throw;
             }
         }
 
         #endregion
 
-        #region Client Logic
+        #region Client Methods
 
         /// <summary>
         /// Create a message that will be broadcast on the network to discover servers
