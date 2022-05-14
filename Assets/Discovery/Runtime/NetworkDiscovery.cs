@@ -1,13 +1,12 @@
-using System;
-using System.Linq;
-using System.Net;
-using UnityEngine;
-using UnityEngine.Events;
-using Mirage.SocketLayer;
-using Mirage.Logging;
-
 namespace Mirage.Discovery
 {
+    using System;
+    using System.Net;
+    using Logging;
+    using SocketLayer;
+    using UnityEngine;
+    using UnityEngine.Events;
+
     [Serializable]
     public class ServerFoundUnityEvent : UnityEvent<ServerResponse> { };
 
@@ -15,9 +14,9 @@ namespace Mirage.Discovery
     [AddComponentMenu("Network/NetworkDiscovery")]
     public class NetworkDiscovery : NetworkDiscoveryBase<ServerRequest, ServerResponse>
     {
-        static readonly ILogger logger = LogFactory.GetLogger(typeof(NetworkDiscovery));
+        private static readonly ILogger Logger = LogFactory.GetLogger(typeof(NetworkDiscovery));
 
-        #region Server
+        #region Server Logic
 
         public long ServerId { get; private set; }
 
@@ -63,22 +62,22 @@ namespace Mirage.Discovery
             }
             catch (NotImplementedException)
             {
-                logger.LogError($"Transport {transport} does not support network discovery");
+                Logger.LogError($"Transport {transport} does not support network discovery");
                 throw;
             }
         }
 
         #endregion
 
-        #region Client
+        #region Client Logic
 
         /// <summary>
-        /// Create a message that will be broadcasted on the network to discover servers
+        /// Create a message that will be broadcast on the network to discover servers
         /// </summary>
         /// <remarks>
         /// Override if you wish to include additional data in the discovery message
         /// such as desired game mode, language, difficulty, etc... </remarks>
-        /// <returns>An instance of ServerRequest with data to be broadcasted</returns>
+        /// <returns>An instance of ServerRequest with data to be broadcast</returns>
         protected override ServerRequest GetRequest() => new ServerRequest();
 
         /// <summary>

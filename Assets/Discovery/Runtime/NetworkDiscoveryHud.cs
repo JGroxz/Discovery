@@ -1,9 +1,11 @@
-using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
-
 namespace Mirage.Discovery
 {
+    using System.Collections.Generic;
+    using System.Linq;
+    using UnityEditor;
+    using UnityEditor.Events;
+    using UnityEngine;
+
     [DisallowMultipleComponent]
     [AddComponentMenu("Network/NetworkDiscoveryHud")]
     [HelpURL("https://mirror-networking.com/docs/Components/NetworkDiscovery.html")]
@@ -19,11 +21,11 @@ namespace Mirage.Discovery
 #if UNITY_EDITOR
         void OnValidate()
         {
-            UnityEditor.Undo.RecordObjects(new Object[] { this, networkDiscovery }, "Set NetworkDiscovery");
+            Undo.RecordObjects(new Object[] { this, networkDiscovery }, "Set NetworkDiscovery");
             if (networkDiscovery == null)
             {
                 networkDiscovery = FindObjectOfType<NetworkDiscovery>();
-                UnityEditor.Events.UnityEventTools.AddPersistentListener(networkDiscovery.OnServerFound, OnDiscoveredServer);
+                UnityEventTools.AddPersistentListener(networkDiscovery.OnServerFound, OnDiscoveredServer);
             }
 
             if (networkManager == null)
