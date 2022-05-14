@@ -9,7 +9,7 @@ namespace Mirage.Discovery
     [HelpURL("https://mirror-networking.com/docs/Components/NetworkDiscovery.html")]
     public class NetworkDiscoveryHud : MonoBehaviour
     {
-        readonly Dictionary<long, ServerResponse> discoveredServers = new Dictionary<long, ServerResponse>();
+        readonly Dictionary<long, ServerResponse> discoveredServers = new();
         Vector2 scrollViewPos = Vector2.zero;
 
         public NetworkDiscovery networkDiscovery;

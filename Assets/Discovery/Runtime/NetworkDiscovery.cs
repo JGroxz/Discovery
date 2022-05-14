@@ -100,7 +100,10 @@ namespace Mirage.Discovery
             // However we know the real ip address of the server because we just
             // received a packet from it,  so use that as host.
 
-            response.uri = new[] {response.EndPoint.Address.ToString()};
+            response.uri = new[]
+            {
+                response.EndPoint.Address.ToString()
+            };
 
 
             OnServerFound.Invoke(response);

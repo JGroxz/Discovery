@@ -1,13 +1,3 @@
-using System;
-using System.Net;
-using System.Net.Sockets;
-using System.Threading.Tasks;
-using Cysharp.Threading.Tasks;
-using UnityEngine;
-using UnityEngine.Rendering;
-using Mirage.Logging;
-using Mirage.Serialization;
-
 // Based on https://github.com/EnlightenedOne/MirrorNetworkDiscovery
 // forked from https://github.com/in0finite/MirrorNetworkDiscovery
 // Both are MIT Licensed
@@ -19,6 +9,18 @@ using Mirage.Serialization;
 
 namespace Mirage.Discovery
 {
+    using System;
+    using System.Net;
+    using System.Net.Sockets;
+    using System.Threading.Tasks;
+    using Cysharp.Threading.Tasks;
+    using Logging;
+    using Serialization;
+    using UnityEditor;
+    using UnityEngine;
+    using UnityEngine.Rendering;
+    using Random = UnityEngine.Random;
+
     /// <summary>
     /// Base implementation for Network Discovery.  Extend this component
     /// to provide custom discovery with game specific data
@@ -30,7 +32,7 @@ namespace Mirage.Discovery
     {
         static readonly ILogger logger = LogFactory.GetLogger(typeof(NetworkDiscoveryBase<Request, Response>));
 
-        public static bool SupportedOnThisPlatform { get { return Application.platform != RuntimePlatform.WebGLPlayer; } }
+        public static bool SupportedOnThisPlatform => Application.platform != RuntimePlatform.WebGLPlayer;
 
         // each game should have a random unique handshake,  this way you can tell if this is the same game or not
         [HideInInspector]
@@ -48,21 +50,21 @@ namespace Mirage.Discovery
         protected UdpClient serverUdpClient;
         protected UdpClient clientUdpClient;
 
-#if UNITY_EDITOR
+    #if UNITY_EDITOR
         void OnValidate()
         {
             if (secretHandshake == 0)
             {
-                UnityEditor.Undo.RecordObject(this, "Set secret handshake");
+                Undo.RecordObject(this, "Set secret handshake");
                 secretHandshake = RandomLong();
             }
         }
-#endif
+    #endif
 
         public static long RandomLong()
         {
-            int value1 = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
-            int value2 = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+            int value1 = Random.Range(int.MinValue, int.MaxValue);
+            int value2 = Random.Range(int.MinValue, int.MaxValue);
             return value1 + ((long)value2 << 32);
         }
 
@@ -72,32 +74,23 @@ namespace Mirage.Discovery
         public virtual void Start()
         {
             // headless mode? then start advertising
-            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
-            {
-                AdvertiseServer();
-            }
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) { AdvertiseServer(); }
         }
 
         // Ensure the ports are cleared no matter when Game/Unity UI exits
-        void OnApplicationQuit()
-        {
-            Shutdown();
-        }
+        void OnApplicationQuit() { Shutdown(); }
 
         void Shutdown()
         {
-#if UNITY_ANDROID
+        #if UNITY_ANDROID
             // If we're on Android, then tell the Android OS that
             // we're done with multicasting and it may save battery again.
             EndMulticastLock();
-#endif
+        #endif
 
             if (serverUdpClient != null)
             {
-                try
-                {
-                    serverUdpClient.Close();
-                }
+                try { serverUdpClient.Close(); }
                 catch (Exception)
                 {
                     // If it's already closed, then just swallow the error. There's no need to show it.
@@ -108,10 +101,7 @@ namespace Mirage.Discovery
 
             if (clientUdpClient != null)
             {
-                try
-                {
-                    clientUdpClient.Close();
-                }
+                try { clientUdpClient.Close(); }
                 catch (Exception)
                 {
                     // Again, if it's already closed, then just swallow the error.
@@ -130,8 +120,7 @@ namespace Mirage.Discovery
         /// </summary>
         public void AdvertiseServer()
         {
-            if (!SupportedOnThisPlatform)
-                throw new PlatformNotSupportedException("Network discovery not supported in this platform");
+            if (!SupportedOnThisPlatform) throw new PlatformNotSupportedException("Network discovery not supported in this platform");
 
             StopDiscovery();
 
@@ -148,17 +137,14 @@ namespace Mirage.Discovery
 
         public async UniTask ServerListenAsync()
         {
-#if UNITY_ANDROID
+        #if UNITY_ANDROID
             // Tell Android to allow us to use Multicasting.
             BeginMulticastLock();
 
-#endif
+        #endif
             while (true)
             {
-                try
-                {
-                    await ReceiveRequestAsync(serverUdpClient);
-                }
+                try { await ReceiveRequestAsync(serverUdpClient); }
                 catch (ObjectDisposedException)
                 {
                     // This socket's been disposed, that's okay, we'll handle it
@@ -178,7 +164,7 @@ namespace Mirage.Discovery
 
             UdpReceiveResult udpReceiveResult = await udpClient.ReceiveAsync();
 
-            using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer))
+            using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
             {
                 long handshake = networkReader.ReadInt64();
                 if (handshake != secretHandshake)
@@ -206,8 +192,7 @@ namespace Mirage.Discovery
         {
             Response info = ProcessRequest(request, endpoint);
 
-            if (info == null)
-                return;
+            if (info == null) return;
 
             using (PooledNetworkWriter writer = NetworkWriterPool.GetWriter())
             {
@@ -221,10 +206,7 @@ namespace Mirage.Discovery
                     // send response
                     serverUdpClient.Send(data.Array, data.Count, endpoint);
                 }
-                catch (Exception ex)
-                {
-                    logger.LogException(ex, this);
-                }
+                catch (Exception ex) { logger.LogException(ex, this); }
             }
         }
 
@@ -240,11 +222,11 @@ namespace Mirage.Discovery
         /// <returns>The message to be sent back to the client or null</returns>
         protected abstract Response ProcessRequest(Request request, IPEndPoint endpoint);
 
-#endregion
+        #endregion
 
-#region Android specific functions for Multicasting support
+        #region Android specific functions for Multicasting support
 
-#if UNITY_ANDROID
+    #if UNITY_ANDROID
         AndroidJavaObject multicastLock;
         bool hasMulticastLock;
 
@@ -276,24 +258,24 @@ namespace Mirage.Discovery
             multicastLock?.Call("release");
             hasMulticastLock = false;
         }
-#endif
+    #endif
 
-#endregion
+        #endregion
 
-#region Client
+        #region Client
 
         /// <summary>
         /// Start Active Discovery
         /// </summary>
         public void StartDiscovery()
         {
-            if (!SupportedOnThisPlatform)
-                throw new PlatformNotSupportedException("Network discovery not supported in this platform");
+            if (!SupportedOnThisPlatform) throw new PlatformNotSupportedException("Network discovery not supported in this platform");
 
             StopDiscovery();
 
             try
             {
+                Debug.Log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
                 // Setup port
                 clientUdpClient = new UdpClient(0)
                 {
@@ -316,10 +298,7 @@ namespace Mirage.Discovery
         /// <summary>
         /// Stop Active Discovery
         /// </summary>
-        public void StopDiscovery()
-        {
-            Shutdown();
-        }
+        public void StopDiscovery() { Shutdown(); }
 
         /// <summary>
         /// Awaits for server response
@@ -329,19 +308,13 @@ namespace Mirage.Discovery
         {
             while (true)
             {
-                try
-                {
-                    await ReceiveGameBroadcastAsync(clientUdpClient);
-                }
+                try { await ReceiveGameBroadcastAsync(clientUdpClient); }
                 catch (ObjectDisposedException)
                 {
                     // socket was closed, no problem
                     return;
                 }
-                catch (Exception ex)
-                {
-                    logger.LogException(ex);
-                }
+                catch (Exception ex) { logger.LogException(ex); }
             }
         }
 
@@ -350,8 +323,7 @@ namespace Mirage.Discovery
         /// </summary>
         public void BroadcastDiscoveryRequest()
         {
-            if (clientUdpClient == null)
-                return;
+            if (clientUdpClient == null) return;
 
             var endPoint = new IPEndPoint(IPAddress.Broadcast, serverBroadcastListenPort);
 
@@ -391,10 +363,9 @@ namespace Mirage.Discovery
 
             UdpReceiveResult udpReceiveResult = await udpClient.ReceiveAsync();
 
-            using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer))
+            using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
             {
-                if (networkReader.ReadInt64() != secretHandshake)
-                    return;
+                if (networkReader.ReadInt64() != secretHandshake) return;
 
                 Response response = networkReader.Read<Response>();
 
@@ -413,6 +384,6 @@ namespace Mirage.Discovery
         /// <param name="endpoint">Address of the server that replied</param>
         protected abstract void ProcessResponse(Response response, IPEndPoint endpoint);
 
-#endregion
+        #endregion
     }
 }
