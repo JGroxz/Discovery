@@ -12,14 +12,13 @@ namespace Mirage.Discovery
     using System;
     using System.Net;
     using System.Net.Sockets;
+    using System.Text;
     using System.Threading.Tasks;
     using Cysharp.Threading.Tasks;
     using Logging;
     using Serialization;
-    using UnityEditor;
     using UnityEngine;
     using UnityEngine.Rendering;
-    using Random = UnityEngine.Random;
 
     /// <summary>
     /// Base implementation for Network Discovery. Extend this component to provide custom discovery with game specific data.
@@ -37,10 +36,13 @@ namespace Mirage.Discovery
 
         public static bool IsSupportedOnThisPlatform => Application.platform != RuntimePlatform.WebGLPlayer;
 
-        // each game should have a random unique handshake, this way you can tell if this is the same game or not
-        // [HideInInspector]
+        /// <summary>
+        /// Unique 64-bit integer identifier of the application. Used as a handshake to match the instances of the same app when doing network discovery.
+        /// Generated automatically by the underlying NetworkDiscovery implementation.
+        /// </summary>
         [ReadOnlyInspector]
-        public long secretHandshake;
+        [Tooltip("Unique identifier of the application. Used to match the instances of the same app when doing network discovery. Generated automatically by the underlying NetworkDiscovery implementation.")]
+        public long uniqueAppIdentifier;
 
         [SerializeField]
         [Tooltip("The UDP port the server will listen for multi-cast messages")]
@@ -56,23 +58,12 @@ namespace Mirage.Discovery
 
         #endregion
 
-        #region Static Methods
-
-        public static long RandomLong()
-        {
-            int value1 = Random.Range(int.MinValue, int.MaxValue);
-            int value2 = Random.Range(int.MinValue, int.MaxValue);
-            return value1 + ((long)value2 << 32);
-        }
-
-        #endregion
-
         #region Unity Callbacks
 
     #if UNITY_EDITOR
-        private void OnValidate()
+        private void Reset()
         {
-            if (secretHandshake == 0) secretHandshake = RandomLong();
+            uniqueAppIdentifier = GetUniqueAppIdentifier();
         }
     #endif
 
@@ -91,6 +82,29 @@ namespace Mirage.Discovery
 
         #endregion
 
+        #region Common Methods
+
+        /// <summary>
+        /// Generates a unique game identifier.
+        /// </summary>
+        /// <remarks>
+        /// This method can be overridden in child classes to implement custom identifier generation logic.
+        /// When overriding, ensure that the value returned by the method is deterministic per your game project / version, and does not change between the calls to this method.
+        /// For example, the default implementation gets this value from Hash128 of combined Application.version, Application.companyName and Application.productName values, which are consistent across a single Unity project.
+        /// </remarks>
+        /// <returns>Generated 64-bit integer ID.</returns>
+        protected virtual long GetUniqueAppIdentifier()
+        {
+            var hash = new Hash128();
+            hash.Append(Application.version);
+            hash.Append(Application.companyName);
+            hash.Append(Application.productName);
+            byte[] hashBytes = Encoding.ASCII.GetBytes(hash.ToString());
+            long id = BitConverter.ToInt64(hashBytes);
+
+            return  id;
+        }
+
         private void Shutdown()
         {
         #if UNITY_ANDROID
@@ -99,30 +113,28 @@ namespace Mirage.Discovery
             EndMulticastLock();
         #endif
 
-            if (serverUdpClient != null)
+            // Helper function to shutdown a UDP client
+            void ShutdownClient(ref UdpClient client)
             {
-                try { serverUdpClient.Close(); }
+                if (client == null) return;
+
+                try { client.Close(); }
                 catch (Exception)
                 {
-                    // If it's already closed, then just swallow the error. There's no need to show it.
+                    // If it's already closed, just swallow the error. There's no need to show it.
                 }
 
-                serverUdpClient = null;
+                client = null;
             }
 
-            if (clientUdpClient != null)
-            {
-                try { clientUdpClient.Close(); }
-                catch (Exception)
-                {
-                    // Again, if it's already closed, then just swallow the error.
-                }
-
-                clientUdpClient = null;
-            }
+            // Shutdown all clients
+            ShutdownClient(ref serverUdpClient);
+            ShutdownClient(ref clientUdpClient);
 
             CancelInvoke();
         }
+
+        #endregion
 
         #region Server Methods
 
@@ -135,7 +147,7 @@ namespace Mirage.Discovery
 
             StopDiscovery();
 
-            // Setup port -- may throw exception
+            // Setup port - may throw exception
             serverUdpClient = new UdpClient(serverBroadcastListenPort)
             {
                 EnableBroadcast = true,
@@ -179,7 +191,7 @@ namespace Mirage.Discovery
             using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
             {
                 long handshake = networkReader.ReadInt64();
-                if (handshake != secretHandshake)
+                if (handshake != uniqueAppIdentifier)
                 {
                     // message is not for us
                     throw new ProtocolViolationException("Invalid handshake");
@@ -209,7 +221,7 @@ namespace Mirage.Discovery
             {
                 try
                 {
-                    writer.WriteInt64(secretHandshake);
+                    writer.WriteInt64(uniqueAppIdentifier);
                     writer.Write(info);
 
                     var data = writer.ToArraySegment();
@@ -300,7 +312,7 @@ namespace Mirage.Discovery
 
             using (PooledNetworkWriter writer = NetworkWriterPool.GetWriter())
             {
-                writer.WriteInt64(secretHandshake);
+                writer.WriteInt64(uniqueAppIdentifier);
 
                 try
                 {
@@ -337,7 +349,7 @@ namespace Mirage.Discovery
 
             using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
             {
-                if (networkReader.ReadInt64() != secretHandshake) return;
+                if (networkReader.ReadInt64() != uniqueAppIdentifier) return;
 
                 var response = networkReader.Read<TResponse>();
 
