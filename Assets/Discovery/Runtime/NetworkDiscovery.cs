@@ -1,12 +1,13 @@
+using System;
+using System.Linq;
+using System.Net;
+using UnityEngine;
+using UnityEngine.Events;
+using Mirage.SocketLayer;
+using Mirage.Logging;
+
 namespace Mirage.Discovery
 {
-    using System;
-    using System.Net;
-    using Logging;
-    using SocketLayer;
-    using UnityEngine;
-    using UnityEngine.Events;
-
     [Serializable]
     public class ServerFoundUnityEvent : UnityEvent<ServerResponse> { };
 
@@ -14,7 +15,7 @@ namespace Mirage.Discovery
     [AddComponentMenu("Network/NetworkDiscovery")]
     public class NetworkDiscovery : NetworkDiscoveryBase<ServerRequest, ServerResponse>
     {
-        private static readonly ILogger Logger = LogFactory.GetLogger(typeof(NetworkDiscovery));
+        static readonly ILogger logger = LogFactory.GetLogger(typeof(NetworkDiscovery));
 
         #region Server Logic
 
@@ -34,15 +35,15 @@ namespace Mirage.Discovery
         }
 
         /// <summary>
-        /// Process the request from a client
+        /// Process the request from a client.
         /// </summary>
         /// <remarks>
         /// Override if you wish to provide more information to the clients
         /// such as the name of the host player
         /// </remarks>
-        /// <param name="request">Request comming from client</param>
-        /// <param name="endpoint">Address of the client that sent the request</param>
-        /// <returns>The message to be sent back to the client or null</returns>
+        /// <param name="request">Request coming from a client.</param>
+        /// <param name="endpoint">Address of the client that sent the request.</param>
+        /// <returns>The message to be sent back to the client or null.</returns>
         protected override ServerResponse ProcessRequest(ServerRequest request, IPEndPoint endpoint)
         {
             // In this case we don't do anything with the request
@@ -62,7 +63,7 @@ namespace Mirage.Discovery
             }
             catch (NotImplementedException)
             {
-                Logger.LogError($"Transport {transport} does not support network discovery");
+                logger.LogError($"Transport {transport} does not support network discovery");
                 throw;
             }
         }
