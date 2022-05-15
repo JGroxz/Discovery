@@ -1,8 +1,7 @@
-using System;
-using System.Net;
-
 namespace Mirage.Discovery
 {
+    using System.Net;
+
     [NetworkMessage]
     public struct ServerResponse
     {

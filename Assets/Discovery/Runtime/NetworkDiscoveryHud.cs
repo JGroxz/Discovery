@@ -1,15 +1,18 @@
-using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
-
 namespace Mirage.Discovery
 {
+    using System.Collections.Generic;
+    using System.Linq;
+    using UnityEngine;
+#if UNITY_EDITOR
+    using UnityEditor.Events;
+#endif
+
     [DisallowMultipleComponent]
     [AddComponentMenu("Network/NetworkDiscoveryHud")]
     [HelpURL("https://mirror-networking.com/docs/Components/NetworkDiscovery.html")]
     public class NetworkDiscoveryHud : MonoBehaviour
     {
-        readonly Dictionary<long, ServerResponse> discoveredServers = new Dictionary<long, ServerResponse>();
+        readonly Dictionary<long, ServerResponse> discoveredServers = new();
         Vector2 scrollViewPos = Vector2.zero;
 
         public NetworkDiscovery networkDiscovery;
@@ -19,11 +22,10 @@ namespace Mirage.Discovery
 #if UNITY_EDITOR
         void OnValidate()
         {
-            UnityEditor.Undo.RecordObjects(new Object[] { this, networkDiscovery }, "Set NetworkDiscovery");
             if (networkDiscovery == null)
             {
                 networkDiscovery = FindObjectOfType<NetworkDiscovery>();
-                UnityEditor.Events.UnityEventTools.AddPersistentListener(networkDiscovery.OnServerFound, OnDiscoveredServer);
+                UnityEventTools.AddPersistentListener(networkDiscovery.OnServerFound, OnDiscoveredServer);
             }
 
             if (networkManager == null)
