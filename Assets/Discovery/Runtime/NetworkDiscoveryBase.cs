@@ -29,15 +29,7 @@ namespace Mirage.Discovery
     [DisallowMultipleComponent]
     [HelpURL("https://miragenet.github.io/Mirage/Articles/Components/NetworkDiscovery.html")]
     public abstract class NetworkDiscoveryBase<TRequest, TResponse> : MonoBehaviour
-        where TRequest : struct
-        where TResponse : struct
     {
-        // NOTE: Constraining TRequest and TResponse types to "struct" results in "BadImageFormatException: Method with open type while not compiling gshared" error at runtime.
-        //       This error does not affect NetworkDiscoveryBase's functionality and does not prevent us from building the application, but is nevertheless annoying.
-        //       not specifying "struct" constraint removes the error, but then we cannot return null from ProcessClientRequest() in child implementations if they are using
-        //       Structs for message container (which is supposed to be the usual case).
-        // TODO: figure out how to remove the error, or drop "return null" functionality from ProcessClientRequest()
-
         #region Variables / Properties
 
         private static readonly ILogger Logger = LogFactory.GetLogger(typeof(NetworkDiscoveryBase<TRequest, TResponse>));
@@ -235,8 +227,6 @@ namespace Mirage.Discovery
         {
             var info = ProcessClientRequest(request, endpoint);
 
-            if (info == null) return;
-
             using (PooledNetworkWriter writer = NetworkWriterPool.GetWriter())
             {
                 try
@@ -257,12 +247,12 @@ namespace Mirage.Discovery
         /// Process discovery request received from a client.
         /// </summary>
         /// <remarks>
-        /// Use this method to server's response to the client, or return null if the received request must be ignored.
+        /// Use this method to craft server's response to the client.
         /// </remarks>
         /// <param name="request">Request coming from a client.</param>
         /// <param name="endpoint">Address of the client that sent the request.</param>
-        /// <returns>The message to be sent back to the client or null. If null is returned, the response won't be sent to the client.</returns>
-        protected abstract TResponse? ProcessClientRequest(TRequest request, IPEndPoint endpoint);
+        /// <returns>The message to be sent back to the client.</returns>
+        protected abstract TResponse ProcessClientRequest(TRequest request, IPEndPoint endpoint);
 
         #endregion
 

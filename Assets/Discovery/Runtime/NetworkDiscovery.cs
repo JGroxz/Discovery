@@ -51,7 +51,7 @@ namespace Mirage.Discovery
         /// <param name="request">Request coming from a client.</param>
         /// <param name="endpoint">Address of the client that sent the request.</param>
         /// <returns>The message to be sent back to the client or null.</returns>
-        protected override ServerResponse? ProcessClientRequest(ServerRequest request, IPEndPoint endpoint)
+        protected override ServerResponse ProcessClientRequest(ServerRequest request, IPEndPoint endpoint)
         {
             // In this case we don't do anything with the request
             // but other discovery implementations might want to use the data
