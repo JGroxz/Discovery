@@ -2,9 +2,10 @@ namespace Mirage.Discovery
 {
     using System.Collections.Generic;
     using System.Linq;
-    using UnityEditor;
-    using UnityEditor.Events;
     using UnityEngine;
+#if UNITY_EDITOR
+    using UnityEditor.Events;
+#endif
 
     [DisallowMultipleComponent]
     [AddComponentMenu("Network/NetworkDiscoveryHud")]
@@ -21,7 +22,6 @@ namespace Mirage.Discovery
 #if UNITY_EDITOR
         void OnValidate()
         {
-            Undo.RecordObjects(new Object[] { this, networkDiscovery }, "Set NetworkDiscovery");
             if (networkDiscovery == null)
             {
                 networkDiscovery = FindObjectOfType<NetworkDiscovery>();
