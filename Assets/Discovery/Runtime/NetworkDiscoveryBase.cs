@@ -32,6 +32,12 @@ namespace Mirage.Discovery
         where TRequest : struct
         where TResponse : struct
     {
+        // NOTE: Constraining TRequest and TResponse types to "struct" results in "BadImageFormatException: Method with open type while not compiling gshared" error at runtime.
+        //       This error does not affect NetworkDiscoveryBase's functionality and does not prevent us from building the application, but is nevertheless annoying.
+        //       not specifying "struct" constraint removes the error, but then we cannot return null from ProcessClientRequest() in child implementations if they are using
+        //       Structs for message container (which is supposed to be the usual case).
+        // TODO: figure out how to remove the error, or drop "return null" functionality from ProcessClientRequest()
+
         #region Variables / Properties
 
         private static readonly ILogger Logger = LogFactory.GetLogger(typeof(NetworkDiscoveryBase<TRequest, TResponse>));
