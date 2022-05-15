@@ -29,6 +29,8 @@ namespace Mirage.Discovery
     [DisallowMultipleComponent]
     [HelpURL("https://miragenet.github.io/Mirage/Articles/Components/NetworkDiscovery.html")]
     public abstract class NetworkDiscoveryBase<TRequest, TResponse> : MonoBehaviour
+        where TRequest : struct
+        where TResponse : struct
     {
         #region Variables / Properties
 
@@ -61,17 +63,18 @@ namespace Mirage.Discovery
         #region Unity Callbacks
 
     #if UNITY_EDITOR
-        private void Reset()
-        {
-            uniqueAppIdentifier = GetUniqueAppIdentifier();
-        }
+        private void Reset() { uniqueAppIdentifier = GetUniqueAppIdentifier(); }
     #endif
 
         // Made virtual so that inheriting classes' Start() can call base.Start() too
         public virtual void Start()
         {
             // headless mode? then start advertising
-            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) { AdvertiseServer(); }
+            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+            {
+                Logger.Log("Running on headless server. Starting advertising server to local network automatically.");
+                AdvertiseServer();
+            }
         }
 
         private void OnApplicationQuit()
@@ -102,9 +105,12 @@ namespace Mirage.Discovery
             byte[] hashBytes = Encoding.ASCII.GetBytes(hash.ToString());
             long id = BitConverter.ToInt64(hashBytes);
 
-            return  id;
+            return id;
         }
 
+        /// <summary>
+        /// Disposes UDP clients used for discovery communication and stop any running discovery routines.
+        /// </summary>
         private void Shutdown()
         {
         #if UNITY_ANDROID
@@ -154,11 +160,17 @@ namespace Mirage.Discovery
                 MulticastLoopback = false
             };
 
+            Logger.Log("Started listening for server discovery requests on the local network.\n" +
+                       $"Unique app ID: {uniqueAppIdentifier}.");
+
             // listen for client pings
             ServerListenAsync().Forget();
         }
 
-        public async UniTask ServerListenAsync()
+        /// <summary>
+        /// Continuously listens to discovery requests in the local network.
+        /// </summary>
+        private async UniTask ServerListenAsync()
         {
         #if UNITY_ANDROID
             // Tell Android to allow us to use Multicasting.
@@ -181,6 +193,11 @@ namespace Mirage.Discovery
             }
         }
 
+        /// <summary>
+        /// Receives a request from the client and processes it.
+        /// </summary>
+        /// <param name="udpClient"><see cref="UdpClient"/> to read the request with.</param>
+        /// <exception cref="ProtocolViolationException">Thrown if the received request contained invalid handshake (i.e. different <see cref="uniqueAppIdentifier"/>).</exception>
         private async Task ReceiveRequestAsync(UdpClient udpClient)
         {
             // only proceed if there is available data in network buffer, or otherwise Receive() will block
@@ -199,21 +216,18 @@ namespace Mirage.Discovery
 
                 var request = networkReader.Read<TRequest>();
 
-                ProcessClientRequest(request, udpReceiveResult.RemoteEndPoint);
+                ProcessClientRequestWrapper(request, udpReceiveResult.RemoteEndPoint);
             }
         }
 
         /// <summary>
         /// Reply to the client to inform it of this server.
         /// </summary>
-        /// <remarks>
-        /// Override this method if you wish to ignore server requests based on custom criteria such as language, server game mode or difficulty.
-        /// </remarks>
         /// <param name="request">Request coming from a client.</param>
         /// <param name="endpoint">Address of the client that sent the request.</param>
-        protected virtual void ProcessClientRequest(TRequest request, IPEndPoint endpoint)
+        private void ProcessClientRequestWrapper(TRequest request, IPEndPoint endpoint)
         {
-            TResponse info = ProcessRequest(request, endpoint);
+            var info = ProcessClientRequest(request, endpoint);
 
             if (info == null) return;
 
@@ -234,26 +248,28 @@ namespace Mirage.Discovery
         }
 
         /// <summary>
-        /// Process the request from a client.
+        /// Process discovery request received from a client.
         /// </summary>
         /// <remarks>
-        /// Override this method if you wish to provide more information to the clients such as the name of the host player.
+        /// Use this method to server's response to the client, or return null if the received request must be ignored.
         /// </remarks>
-        /// <param name="request">Request coming a from client.</param>
+        /// <param name="request">Request coming from a client.</param>
         /// <param name="endpoint">Address of the client that sent the request.</param>
-        /// <returns>The message to be sent back to the client or null.</returns>
-        protected abstract TResponse ProcessRequest(TRequest request, IPEndPoint endpoint);
+        /// <returns>The message to be sent back to the client or null. If null is returned, the response won't be sent to the client.</returns>
+        protected abstract TResponse? ProcessClientRequest(TRequest request, IPEndPoint endpoint);
 
         #endregion
 
         #region Client Methods
 
         /// <summary>
-        /// Start active discovery.
+        /// Makes this client start looking for servers on LAN.
         /// </summary>
         public void StartDiscovery()
         {
             if (!IsSupportedOnThisPlatform) throw new PlatformNotSupportedException("Network discovery not supported in this platform");
+
+            Logger.Log("Initiating LAN server discovery...");
 
             StopDiscovery();
 
@@ -276,33 +292,22 @@ namespace Mirage.Discovery
             ClientListenAsync().Forget();
 
             InvokeRepeating(nameof(BroadcastDiscoveryRequest), 0, activeDiscoveryInterval);
+
+            Logger.Log("Started LAN discovery.");
         }
 
         /// <summary>
-        /// Stop active discovery.
+        /// Makes this client stop looking for servers on LAN.
         /// </summary>
-        public void StopDiscovery() { Shutdown(); }
-
-        /// <summary>
-        /// Awaits for server response.
-        /// </summary>
-        /// <returns>ClientListenAsync Task.</returns>
-        public async UniTask ClientListenAsync()
+        public void StopDiscovery()
         {
-            while (true)
-            {
-                try { await ReceiveGameBroadcastAsync(clientUdpClient); }
-                catch (ObjectDisposedException)
-                {
-                    // socket was closed, no problem
-                    return;
-                }
-                catch (Exception ex) { Logger.LogException(ex); }
-            }
+            Shutdown();
+
+            Logger.Log("Stopped LAN discovery.");
         }
 
         /// <summary>
-        /// Sends discovery request from client.
+        /// Broadcasts discovery request from this client to the machines on the local network.
         /// </summary>
         public void BroadcastDiscoveryRequest()
         {
@@ -316,7 +321,7 @@ namespace Mirage.Discovery
 
                 try
                 {
-                    TRequest request = GetRequest();
+                    TRequest? request = CraftDiscoveryRequest();
                     writer.Write(request);
 
                     var data = writer.ToArraySegment();
@@ -332,14 +337,27 @@ namespace Mirage.Discovery
         }
 
         /// <summary>
-        /// Create a message that will be broadcast on the network to discover servers.
+        /// Awaits for server response.
         /// </summary>
-        /// <remarks>
-        /// Override this method if you wish to include additional data in the discovery message such as desired game mode, language, difficulty, etc.
-        /// </remarks>
-        /// <returns>An instance of <see cref="ServerRequest"/> with data to be broadcast.</returns>
-        protected abstract TRequest GetRequest();
+        /// <returns>ClientListenAsync Task.</returns>
+        private async UniTask ClientListenAsync()
+        {
+            while (true)
+            {
+                try { await ReceiveGameBroadcastAsync(clientUdpClient); }
+                catch (ObjectDisposedException)
+                {
+                    // socket was closed, no problem
+                    return;
+                }
+                catch (Exception ex) { Logger.LogException(ex); }
+            }
+        }
 
+        /// <summary>
+        /// Receives a response from the server and processes it.
+        /// </summary>
+        /// <param name="udpClient"><see cref="UdpClient"/> to read the response with.</param>
         private async Task ReceiveGameBroadcastAsync(UdpClient udpClient)
         {
             // only proceed if there is available data in network buffer, or otherwise Receive() will block
@@ -353,19 +371,29 @@ namespace Mirage.Discovery
 
                 var response = networkReader.Read<TResponse>();
 
-                ProcessResponse(response, udpReceiveResult.RemoteEndPoint);
+                ProcessServerResponse(response, udpReceiveResult.RemoteEndPoint);
             }
         }
+
+        /// <summary>
+        /// Create a message that will be broadcast on the network to discover servers.
+        /// </summary>
+        /// <remarks>
+        /// Use this method to craft your discovery request message, filling it with required data (e.g. desired game mode, language, difficulty, etc.).
+        /// </remarks>
+        /// <returns>An instance of <see cref="ServerRequest"/> with data to be broadcast.</returns>
+        protected abstract TRequest CraftDiscoveryRequest();
 
         /// <summary>
         /// Process the answer from a server.
         /// </summary>
         /// <remarks>
-        /// A client receives a reply from a server, this method processes the reply and raises an event.
+        /// Implementations can execute arbitrary logic here to react to each new server discovery.
+        /// For example, an event can be raised to notify that a server was found.
         /// </remarks>
-        /// <param name="response">Response that came from the server</param>
-        /// <param name="endpoint">Address of the server that replied</param>
-        protected abstract void ProcessResponse(TResponse response, IPEndPoint endpoint);
+        /// <param name="response">Response that came from the server.</param>
+        /// <param name="endpoint">Address of the server that replied.</param>
+        protected abstract void ProcessServerResponse(TResponse response, IPEndPoint endpoint);
 
         #endregion
 
