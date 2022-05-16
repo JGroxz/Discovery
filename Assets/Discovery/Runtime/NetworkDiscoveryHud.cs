@@ -59,7 +59,7 @@ namespace Mirage.Discovery
             {
                 discoveredServers.Clear();
                 networkManager.Server.StartServer(networkManager.Client);
-                networkDiscovery.AdvertiseServer();
+                networkDiscovery.StartAdvertisingServer();
             }
 
             // Dedicated server
@@ -68,7 +68,7 @@ namespace Mirage.Discovery
                 discoveredServers.Clear();
                 networkManager.Server.StartServer();
 
-                networkDiscovery.AdvertiseServer();
+                networkDiscovery.StartAdvertisingServer();
             }
 
             GUILayout.EndHorizontal();

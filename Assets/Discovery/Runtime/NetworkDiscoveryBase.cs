@@ -23,6 +23,8 @@ namespace Mirage.Discovery
     /// <summary>
     /// Base implementation for Network Discovery. Extend this component to provide custom discovery with game specific data.
     /// </summary>
+    /// <typeparam name="TRequest">Request message type. Must be a struct marked with <see cref="NetworkMessageAttribute"/>.</typeparam>
+    /// <typeparam name="TResponse">Response message type. Must be a struct marked with <see cref="NetworkMessageAttribute"/>.</typeparam>
     /// <remarks>
     /// See <see cref="NetworkDiscovery">NetworkDiscovery</see> for a sample implementation.
     /// </remarks>
@@ -41,6 +43,7 @@ namespace Mirage.Discovery
         /// Generated automatically by the underlying NetworkDiscovery implementation.
         /// </summary>
         [ReadOnlyInspector]
+        [Header("Base Discovery Settings")]
         [Tooltip("Unique identifier of the application. Used to match the instances of the same app when doing network discovery. Generated automatically by the underlying NetworkDiscovery implementation.")]
         public long uniqueAppIdentifier;
 
@@ -71,7 +74,7 @@ namespace Mirage.Discovery
             if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
             {
                 Logger.Log("Running on headless server. Starting advertising server to local network automatically.");
-                AdvertiseServer();
+                StartAdvertisingServer();
             }
         }
 
@@ -145,7 +148,7 @@ namespace Mirage.Discovery
         /// <summary>
         /// Starts advertising this server in the local network.
         /// </summary>
-        public void AdvertiseServer()
+        public void StartAdvertisingServer()
         {
             if (!IsSupportedOnThisPlatform) throw new PlatformNotSupportedException("Network discovery not supported in this platform");
 
@@ -158,7 +161,7 @@ namespace Mirage.Discovery
                 MulticastLoopback = false
             };
 
-            Logger.Log("Started listening for server discovery requests on the local network.\n" +
+            Logger.Log($"Started listening for server discovery requests on the local network (port {serverBroadcastListenPort}).\n" +
                        $"Unique app ID: {uniqueAppIdentifier}.");
 
             // listen for client pings
@@ -206,14 +209,17 @@ namespace Mirage.Discovery
             using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
             {
                 long handshake = networkReader.ReadInt64();
-                if (handshake != uniqueAppIdentifier)
+
+                bool isHandshakeValid = handshake == uniqueAppIdentifier;
+                Logger.Log($"Received discovery request, handshake is {handshake} ({(isHandshakeValid ? "VALID" : "INVALID")}).");
+
+                if (!isHandshakeValid)
                 {
                     // message is not for us
                     throw new ProtocolViolationException("Invalid handshake");
                 }
 
                 var request = networkReader.Read<TRequest>();
-
                 ProcessClientRequestWrapper(request, udpReceiveResult.RemoteEndPoint);
             }
         }
@@ -317,7 +323,7 @@ namespace Mirage.Discovery
 
                 try
                 {
-                    TRequest? request = CraftDiscoveryRequest();
+                    TRequest request = CraftDiscoveryRequest();
                     writer.Write(request);
 
                     var data = writer.ToArraySegment();
