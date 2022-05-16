@@ -34,7 +34,7 @@ namespace Mirage.Discovery
             return value1 + ((long)value2 << 32);
         }
 
-        public override void Start()
+        protected override void Start()
         {
             ServerId = RandomLong();
 

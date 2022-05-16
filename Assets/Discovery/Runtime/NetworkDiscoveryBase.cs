@@ -65,7 +65,7 @@ namespace Mirage.Discovery
     #endif
 
         // Made virtual so that inheriting classes' Start() can call base.Start() too
-        public virtual void Start()
+        protected virtual void Start()
         {
             // headless mode? then start advertising
             if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
