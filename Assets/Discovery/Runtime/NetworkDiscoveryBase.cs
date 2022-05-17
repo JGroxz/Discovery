@@ -206,22 +206,26 @@ namespace Mirage.Discovery
 
             UdpReceiveResult udpReceiveResult = await udpClient.ReceiveAsync();
 
-            using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
+            try
             {
-                long handshake = networkReader.ReadInt64();
-
-                bool isHandshakeValid = handshake == uniqueAppIdentifier;
-                Logger.Log($"Received discovery request, handshake is {handshake} ({(isHandshakeValid ? "VALID" : "INVALID")}).");
-
-                if (!isHandshakeValid)
+                using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
                 {
-                    // message is not for us
-                    throw new ProtocolViolationException("Invalid handshake");
-                }
+                    long handshake = networkReader.ReadInt64();
 
-                var request = networkReader.Read<TRequest>();
-                ProcessClientRequestWrapper(request, udpReceiveResult.RemoteEndPoint);
+                    bool isHandshakeValid = handshake == uniqueAppIdentifier;
+                    Logger.Log($"Received discovery request, handshake is {handshake} ({(isHandshakeValid ? "VALID" : "INVALID")}).");
+
+                    if (!isHandshakeValid)
+                    {
+                        // message is not for us
+                        throw new ProtocolViolationException("Invalid handshake");
+                    }
+
+                    var request = networkReader.Read<TRequest>();
+                    ProcessClientRequestWrapper(request, udpReceiveResult.RemoteEndPoint);
+                }
             }
+            catch (Exception ex) { Logger.LogException(ex); }
         }
 
         /// <summary>
@@ -364,17 +368,20 @@ namespace Mirage.Discovery
         {
             // only proceed if there is available data in network buffer, or otherwise Receive() will block
             // average time for UdpClient.Available : 10 us
-
             UdpReceiveResult udpReceiveResult = await udpClient.ReceiveAsync();
 
-            using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
+            try
             {
-                if (networkReader.ReadInt64() != uniqueAppIdentifier) return;
+                using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
+                {
+                    if (networkReader.ReadInt64() != uniqueAppIdentifier) return;
 
-                var response = networkReader.Read<TResponse>();
+                    var response = networkReader.Read<TResponse>();
 
-                ProcessServerResponse(response, udpReceiveResult.RemoteEndPoint);
+                    ProcessServerResponse(response, udpReceiveResult.RemoteEndPoint);
+                }
             }
+            catch (Exception ex) { Logger.LogException(ex); }
         }
 
         /// <summary>
