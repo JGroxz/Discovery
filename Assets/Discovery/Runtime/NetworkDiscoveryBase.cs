@@ -167,6 +167,16 @@ namespace Mirage.Discovery
         }
 
         /// <summary>
+        /// Stops advertising this server in the local network.
+        /// </summary>
+        public void StopAdvertisingServer()
+        {
+            Shutdown();
+
+            Logger.Log("Stopped listening for server discovery requests.");
+        }
+
+        /// <summary>
         /// Continuously listens to discovery requests in the local network.
         /// </summary>
         private async UniTask ServerListenAsync()
