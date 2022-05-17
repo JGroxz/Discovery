@@ -110,10 +110,12 @@ namespace Mirage.Discovery
         }
 
         /// <summary>
-        /// Disposes UDP clients used for discovery communication and stop any running discovery routines.
+        /// Disposes UDP clients used for discovery communication and stops any running discovery routines.
         /// </summary>
         private void Shutdown()
         {
+            CancelInvoke();
+
         #if UNITY_ANDROID
             // If we're on Android, then tell the Android OS that
             // we're done with multicasting and it may save battery again.
@@ -126,19 +128,15 @@ namespace Mirage.Discovery
                 if (client == null) return;
 
                 try { client.Close(); }
-                catch (Exception)
+                catch (SocketException)
                 {
                     // If it's already closed, just swallow the error. There's no need to show it.
                 }
-
-                client = null;
             }
 
             // Shutdown all clients
             ShutdownClient(ref serverUdpClient);
             ShutdownClient(ref clientUdpClient);
-
-            CancelInvoke();
         }
 
         #endregion
