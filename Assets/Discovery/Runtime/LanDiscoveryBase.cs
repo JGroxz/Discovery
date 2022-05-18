@@ -21,20 +21,20 @@ namespace Mirage.Discovery
     using UnityEngine.Rendering;
 
     /// <summary>
-    /// Base implementation for Network Discovery. Extend this component to provide custom discovery with game specific data.
+    /// Base implementation of server discovery on the local network. Extend this component to provide custom discovery with game specific data.
     /// </summary>
     /// <typeparam name="TRequest">Request message type. Must be a struct marked with <see cref="NetworkMessageAttribute"/>.</typeparam>
     /// <typeparam name="TResponse">Response message type. Must be a struct marked with <see cref="NetworkMessageAttribute"/>.</typeparam>
     /// <remarks>
-    /// See <see cref="NetworkDiscovery">NetworkDiscovery</see> for a sample implementation.
+    /// See <see cref="LanDiscovery"/> for a sample implementation.
     /// </remarks>
     [DisallowMultipleComponent]
-    [HelpURL("https://miragenet.github.io/Mirage/Articles/Components/NetworkDiscovery.html")]
-    public abstract class NetworkDiscoveryBase<TRequest, TResponse> : MonoBehaviour
+    [HelpURL("https://miragenet.github.io/Mirage/Articles/Components/LanDiscovery.html")]
+    public abstract class LanDiscoveryBase<TRequest, TResponse> : MonoBehaviour
     {
         #region Variables / Properties
 
-        private static readonly ILogger Logger = LogFactory.GetLogger(typeof(NetworkDiscoveryBase<TRequest, TResponse>));
+        private static readonly ILogger Logger = LogFactory.GetLogger(typeof(LanDiscoveryBase<TRequest, TResponse>));
 
         public static bool IsSupportedOnThisPlatform => Application.platform != RuntimePlatform.WebGLPlayer;
 
@@ -44,7 +44,7 @@ namespace Mirage.Discovery
         /// </summary>
         [ReadOnlyInspector]
         [Header("Base Discovery Settings")]
-        [Tooltip("Unique identifier of the application. Used to match the instances of the same app when doing network discovery. Generated automatically by the underlying NetworkDiscovery implementation.")]
+        [Tooltip("Unique identifier of the application. Used to match the instances of the same app when doing network discovery. Generated automatically by the underlying LanDiscovery implementation.")]
         public long uniqueAppIdentifier;
 
         [SerializeField]
