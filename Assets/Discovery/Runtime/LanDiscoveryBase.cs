@@ -342,11 +342,7 @@ namespace Mirage.Discovery
 
                     clientUdpClient.SendAsync(data.Array, data.Count, endPoint);
                 }
-                catch (Exception)
-                {
-                    // It is ok if we can't broadcast to one of the addresses.
-                    // TODO: Maybe we should check for more explicit exceptions?
-                }
+                catch (Exception ex) { Logger.LogException(ex); }
             }
         }
 
