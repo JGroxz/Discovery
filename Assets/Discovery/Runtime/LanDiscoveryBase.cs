@@ -67,6 +67,21 @@ namespace Mirage.Discovery
         private void Reset() { uniqueAppIdentifier = GetUniqueAppIdentifier(); }
     #endif
 
+        protected void Awake()
+        {
+            void CheckNetworkMessageAttributePresent(Type messageType)
+            {
+                bool present = Attribute.IsDefined(messageType, typeof(NetworkMessageAttribute));
+                if (present) return;
+
+                Logger.LogError($"{messageType} is not marked with {nameof(NetworkMessageAttribute)}, and thus it will fail to get serialized.\n" +
+                                $"Please add [NetworkMessage] attribute to {messageType} definition.");
+            }
+
+            CheckNetworkMessageAttributePresent(typeof(TRequest));
+            CheckNetworkMessageAttributePresent(typeof(TResponse));
+        }
+
         // Made virtual so that inheriting classes' Start() can call base.Start() too
         protected virtual void Start()
         {
