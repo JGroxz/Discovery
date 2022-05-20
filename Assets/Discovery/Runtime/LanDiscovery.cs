@@ -12,7 +12,7 @@ namespace Mirage.Discovery
     public class ServerFoundUnityEvent : UnityEvent<ServerResponse> { };
 
     [DisallowMultipleComponent]
-    [AddComponentMenu("Network/LanDiscoveryLan Discovery")]
+    [AddComponentMenu("Network/Lan Discovery")]
     public class LanDiscovery : LanDiscoveryBase<ServerRequest, ServerResponse>
     {
         private static readonly ILogger Logger = LogFactory.GetLogger(typeof(LanDiscovery));
