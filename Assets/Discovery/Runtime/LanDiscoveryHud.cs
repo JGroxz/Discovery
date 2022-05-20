@@ -8,24 +8,24 @@ namespace Mirage.Discovery
 #endif
 
     [DisallowMultipleComponent]
-    [AddComponentMenu("Network/NetworkDiscoveryHud")]
-    [HelpURL("https://mirror-networking.com/docs/Components/NetworkDiscovery.html")]
-    public class NetworkDiscoveryHud : MonoBehaviour
+    [AddComponentMenu("Network/Lan Discovery Hud")]
+    [HelpURL("https://miragenet.github.io/Mirage/Articles/Components/LanDiscovery.html")]
+    public class LanDiscoveryHud : MonoBehaviour
     {
         readonly Dictionary<long, ServerResponse> discoveredServers = new();
         Vector2 scrollViewPos = Vector2.zero;
 
-        public NetworkDiscovery networkDiscovery;
+        public LanDiscovery lanDiscovery;
 
         public NetworkManager networkManager;
 
 #if UNITY_EDITOR
         void OnValidate()
         {
-            if (networkDiscovery == null)
+            if (lanDiscovery == null)
             {
-                networkDiscovery = FindObjectOfType<NetworkDiscovery>();
-                UnityEventTools.AddPersistentListener(networkDiscovery.OnServerFound, OnDiscoveredServer);
+                lanDiscovery = FindObjectOfType<LanDiscovery>();
+                UnityEventTools.AddPersistentListener(lanDiscovery.OnServerFound, OnDiscoveredServer);
             }
 
             if (networkManager == null)
@@ -51,7 +51,7 @@ namespace Mirage.Discovery
             if (GUILayout.Button("Find Servers"))
             {
                 discoveredServers.Clear();
-                networkDiscovery.StartDiscovery();
+                lanDiscovery.StartDiscovery();
             }
 
             // LAN Host
@@ -59,7 +59,7 @@ namespace Mirage.Discovery
             {
                 discoveredServers.Clear();
                 networkManager.Server.StartServer(networkManager.Client);
-                networkDiscovery.AdvertiseServer();
+                lanDiscovery.StartAdvertisingServer();
             }
 
             // Dedicated server
@@ -68,7 +68,7 @@ namespace Mirage.Discovery
                 discoveredServers.Clear();
                 networkManager.Server.StartServer();
 
-                networkDiscovery.AdvertiseServer();
+                lanDiscovery.StartAdvertisingServer();
             }
 
             GUILayout.EndHorizontal();

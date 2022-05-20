@@ -21,18 +21,20 @@ namespace Mirage.Discovery
     using UnityEngine.Rendering;
 
     /// <summary>
-    /// Base implementation for Network Discovery. Extend this component to provide custom discovery with game specific data.
+    /// Base implementation of server discovery on the local network. Extend this component to provide custom discovery with game specific data.
     /// </summary>
+    /// <typeparam name="TRequest">Request message type. Must be a struct marked with <see cref="NetworkMessageAttribute"/>.</typeparam>
+    /// <typeparam name="TResponse">Response message type. Must be a struct marked with <see cref="NetworkMessageAttribute"/>.</typeparam>
     /// <remarks>
-    /// See <see cref="NetworkDiscovery">NetworkDiscovery</see> for a sample implementation.
+    /// See <see cref="LanDiscovery"/> for a sample implementation.
     /// </remarks>
     [DisallowMultipleComponent]
-    [HelpURL("https://miragenet.github.io/Mirage/Articles/Components/NetworkDiscovery.html")]
-    public abstract class NetworkDiscoveryBase<TRequest, TResponse> : MonoBehaviour
+    [HelpURL("https://miragenet.github.io/Mirage/Articles/Components/LanDiscovery.html")]
+    public abstract class LanDiscoveryBase<TRequest, TResponse> : MonoBehaviour
     {
         #region Variables / Properties
 
-        private static readonly ILogger Logger = LogFactory.GetLogger(typeof(NetworkDiscoveryBase<TRequest, TResponse>));
+        private static readonly ILogger Logger = LogFactory.GetLogger(typeof(LanDiscoveryBase<TRequest, TResponse>));
 
         public static bool IsSupportedOnThisPlatform => Application.platform != RuntimePlatform.WebGLPlayer;
 
@@ -41,7 +43,8 @@ namespace Mirage.Discovery
         /// Generated automatically by the underlying NetworkDiscovery implementation.
         /// </summary>
         [ReadOnlyInspector]
-        [Tooltip("Unique identifier of the application. Used to match the instances of the same app when doing network discovery. Generated automatically by the underlying NetworkDiscovery implementation.")]
+        [Header("Base Discovery Settings")]
+        [Tooltip("Unique identifier of the application. Used to match the instances of the same app when doing network discovery. Generated automatically by the underlying LanDiscovery implementation.")]
         public long uniqueAppIdentifier;
 
         [SerializeField]
@@ -65,13 +68,13 @@ namespace Mirage.Discovery
     #endif
 
         // Made virtual so that inheriting classes' Start() can call base.Start() too
-        public virtual void Start()
+        protected virtual void Start()
         {
             // headless mode? then start advertising
             if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
             {
                 Logger.Log("Running on headless server. Starting advertising server to local network automatically.");
-                AdvertiseServer();
+                StartAdvertisingServer();
             }
         }
 
@@ -107,10 +110,12 @@ namespace Mirage.Discovery
         }
 
         /// <summary>
-        /// Disposes UDP clients used for discovery communication and stop any running discovery routines.
+        /// Disposes UDP clients used for discovery communication and stops any running discovery routines.
         /// </summary>
         private void Shutdown()
         {
+            CancelInvoke();
+
         #if UNITY_ANDROID
             // If we're on Android, then tell the Android OS that
             // we're done with multicasting and it may save battery again.
@@ -123,19 +128,15 @@ namespace Mirage.Discovery
                 if (client == null) return;
 
                 try { client.Close(); }
-                catch (Exception)
+                catch (SocketException)
                 {
                     // If it's already closed, just swallow the error. There's no need to show it.
                 }
-
-                client = null;
             }
 
             // Shutdown all clients
             ShutdownClient(ref serverUdpClient);
             ShutdownClient(ref clientUdpClient);
-
-            CancelInvoke();
         }
 
         #endregion
@@ -145,7 +146,7 @@ namespace Mirage.Discovery
         /// <summary>
         /// Starts advertising this server in the local network.
         /// </summary>
-        public void AdvertiseServer()
+        public void StartAdvertisingServer()
         {
             if (!IsSupportedOnThisPlatform) throw new PlatformNotSupportedException("Network discovery not supported in this platform");
 
@@ -158,11 +159,21 @@ namespace Mirage.Discovery
                 MulticastLoopback = false
             };
 
-            Logger.Log("Started listening for server discovery requests on the local network.\n" +
+            Logger.Log($"Started listening for server discovery requests on the local network (port {serverBroadcastListenPort}).\n" +
                        $"Unique app ID: {uniqueAppIdentifier}.");
 
             // listen for client pings
             ServerListenAsync().Forget();
+        }
+
+        /// <summary>
+        /// Stops advertising this server in the local network.
+        /// </summary>
+        public void StopAdvertisingServer()
+        {
+            Shutdown();
+
+            Logger.Log("Stopped listening for server discovery requests.");
         }
 
         /// <summary>
@@ -203,19 +214,26 @@ namespace Mirage.Discovery
 
             UdpReceiveResult udpReceiveResult = await udpClient.ReceiveAsync();
 
-            using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
+            try
             {
-                long handshake = networkReader.ReadInt64();
-                if (handshake != uniqueAppIdentifier)
+                using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
                 {
-                    // message is not for us
-                    throw new ProtocolViolationException("Invalid handshake");
+                    long handshake = networkReader.ReadInt64();
+
+                    bool isHandshakeValid = handshake == uniqueAppIdentifier;
+                    Logger.Log($"Received discovery request, handshake is {handshake} ({(isHandshakeValid ? "VALID" : "INVALID")}).");
+
+                    if (!isHandshakeValid)
+                    {
+                        // message is not for us
+                        throw new ProtocolViolationException("Invalid handshake");
+                    }
+
+                    var request = networkReader.Read<TRequest>();
+                    ProcessClientRequestWrapper(request, udpReceiveResult.RemoteEndPoint);
                 }
-
-                var request = networkReader.Read<TRequest>();
-
-                ProcessClientRequestWrapper(request, udpReceiveResult.RemoteEndPoint);
             }
+            catch (Exception ex) { Logger.LogException(ex); }
         }
 
         /// <summary>
@@ -317,7 +335,7 @@ namespace Mirage.Discovery
 
                 try
                 {
-                    TRequest? request = CraftDiscoveryRequest();
+                    TRequest request = CraftDiscoveryRequest();
                     writer.Write(request);
 
                     var data = writer.ToArraySegment();
@@ -358,17 +376,20 @@ namespace Mirage.Discovery
         {
             // only proceed if there is available data in network buffer, or otherwise Receive() will block
             // average time for UdpClient.Available : 10 us
-
             UdpReceiveResult udpReceiveResult = await udpClient.ReceiveAsync();
 
-            using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
+            try
             {
-                if (networkReader.ReadInt64() != uniqueAppIdentifier) return;
+                using (PooledNetworkReader networkReader = NetworkReaderPool.GetReader(udpReceiveResult.Buffer, null))
+                {
+                    if (networkReader.ReadInt64() != uniqueAppIdentifier) return;
 
-                var response = networkReader.Read<TResponse>();
+                    var response = networkReader.Read<TResponse>();
 
-                ProcessServerResponse(response, udpReceiveResult.RemoteEndPoint);
+                    ProcessServerResponse(response, udpReceiveResult.RemoteEndPoint);
+                }
             }
+            catch (Exception ex) { Logger.LogException(ex); }
         }
 
         /// <summary>

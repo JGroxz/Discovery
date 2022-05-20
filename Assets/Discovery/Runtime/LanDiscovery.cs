@@ -12,10 +12,10 @@ namespace Mirage.Discovery
     public class ServerFoundUnityEvent : UnityEvent<ServerResponse> { };
 
     [DisallowMultipleComponent]
-    [AddComponentMenu("Network/NetworkDiscovery")]
-    public class NetworkDiscovery : NetworkDiscoveryBase<ServerRequest, ServerResponse>
+    [AddComponentMenu("Network/LanDiscoveryLan Discovery")]
+    public class LanDiscovery : LanDiscoveryBase<ServerRequest, ServerResponse>
     {
-        private static readonly ILogger Logger = LogFactory.GetLogger(typeof(NetworkDiscovery));
+        private static readonly ILogger Logger = LogFactory.GetLogger(typeof(LanDiscovery));
 
         #region Server Methods
 
@@ -34,7 +34,7 @@ namespace Mirage.Discovery
             return value1 + ((long)value2 << 32);
         }
 
-        public override void Start()
+        protected override void Start()
         {
             ServerId = RandomLong();
 
